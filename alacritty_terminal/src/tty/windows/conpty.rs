@@ -221,7 +221,7 @@ pub fn new(config: &Options, window_size: WindowSize) -> Result<Pty> {
             cmdline.as_ptr() as PWSTR,
             ptr::null_mut(),
             ptr::null_mut(),
-            false as i32,
+            true as i32,
             creation_flags,
             custom_env_block_pointer,
             cwd.as_ref().map_or_else(ptr::null, |s| s.as_ptr()),
