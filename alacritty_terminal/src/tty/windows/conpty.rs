@@ -202,7 +202,7 @@ pub fn new(config: &Options, window_size: WindowSize) -> Result<Pty> {
     }
 
     // Prepare child process creation arguments.
-    let cmdline = win32_string(&cmdline(config));
+    let cmdline = cmdline(config);
     let cwd = config.working_directory.as_ref().map(win32_string);
     let mut creation_flags = EXTENDED_STARTUPINFO_PRESENT;
     let custom_env_block = convert_custom_env(&config.env);

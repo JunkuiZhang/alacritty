@@ -125,14 +125,57 @@ impl OnResize for Pty {
     }
 }
 
-fn cmdline(config: &Options) -> String {
+fn cmdline(config: &Options) -> Vec<u16> {
+    let mut cmd = Vec::new();
     let default_shell = Shell::new("powershell".to_owned(), Vec::new());
     let shell = config.shell.as_ref().unwrap_or(&default_shell);
 
-    once(shell.program.as_str())
-        .chain(shell.args.iter().map(|s| s.as_str()))
-        .collect::<Vec<_>>()
-        .join(" ")
+    // Always quote the program name so CreateProcess to avoid ambiguity when
+    // the child process parses its arguments.
+    // Note that quotes aren't escaped here because they can't be used in arg0.
+    // But that's ok because file paths can't contain quotes.
+    cmd.push(b'"' as u16);
+    cmd.extend(shell.program.as_str().encode_utf16());
+    cmd.push(b'"' as u16);
+
+    for arg in shell.args.iter() {
+        cmd.push(' ' as u16);
+        append_arg(&mut cmd, arg);
+    }
+    cmd.push(0); // Null-terminate the command line.
+    cmd
+}
+
+fn append_arg(cmd: &mut Vec<u16>, arg: &str) {
+    let arg_bytes = arg.as_bytes();
+    let quote = need_quote(arg_bytes);
+    if quote {
+        cmd.push('"' as u16);
+    }
+
+    let mut backslashes = 0;
+    for x in arg.encode_utf16() {
+        if x == '\\' as u16 {
+            backslashes += 1;
+        } else {
+            if x == '"' as u16 {
+                // Add n+1 backslashes to total 2n+1 before internal '"'.
+                cmd.extend((0..=backslashes).map(|_| '\\' as u16));
+            }
+            backslashes = 0;
+        }
+        cmd.push(x);
+    }
+
+    if quote {
+        // Add n backslashes to total 2n before ending '"'.
+        cmd.extend((0..backslashes).map(|_| '\\' as u16));
+        cmd.push('"' as u16);
+    }
+}
+
+fn need_quote(arg_bytes: &[u8]) -> bool {
+    arg_bytes.iter().any(|c| *c == b' ' || *c == b'\t') || arg_bytes.is_empty()
 }
 
 /// Converts the string slice into a Windows-standard representation for "W"-
